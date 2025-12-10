@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getVaultInfo, getVaultAPY, getVaultHistory } from '../services/api'
+import { getVaultInfo, getVaultAPY, getVaultHistory, getAccountVaultData } from '../services/api'
 import { formatAmount, formatAmountWithCommas, formatAmountWithCommasDecimal, formatAmountCompact, formatCompactNumber, formatPercentage } from '../utils/formatters'
 import {
   LineChart,
@@ -28,6 +28,10 @@ function VaultDashboard() {
   const [vaultData, setVaultData] = useState(null)
   const [historyPeriod, setHistoryPeriod] = useState('30d')
   const [historyInterval, setHistoryInterval] = useState('daily')
+  const [walletAddress, setWalletAddress] = useState('')
+  const [accountData, setAccountData] = useState(null)
+  const [accountLoading, setAccountLoading] = useState(false)
+  const [accountError, setAccountError] = useState(null)
 
   const fetchVaultData = async () => {
     if (!vaultAddress.trim()) {
@@ -111,6 +115,31 @@ function VaultDashboard() {
         setLoading(false)
       }
     }
+  }
+
+  const fetchAccountData = async () => {
+    if (!walletAddress.trim() || !vaultAddress.trim()) {
+      setAccountError('Please enter both wallet address and vault address')
+      return
+    }
+
+    setAccountLoading(true)
+    setAccountError(null)
+    setAccountData(null)
+
+    try {
+      const data = await getAccountVaultData(walletAddress, vaultAddress, network, 'daily')
+      setAccountData(data)
+    } catch (err) {
+      setAccountError(err.message || 'An error occurred while fetching account data')
+    } finally {
+      setAccountLoading(false)
+    }
+  }
+
+  const handleAccountSubmit = (e) => {
+    e.preventDefault()
+    fetchAccountData()
   }
 
   // Prepare chart data
@@ -645,6 +674,306 @@ function VaultDashboard() {
               <p className="error-text">Error: {vaultData.errors.history}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* User Account Dashboard */}
+      {vaultAddress && (
+        <div className="account-section">
+          <div className="info-card">
+            <h2>Your Account Position</h2>
+            <p className="section-description">Enter your wallet address to view your position and performance in this vault</p>
+            
+            <form onSubmit={handleAccountSubmit} className="account-form">
+              <div className="input-group">
+                <input
+                  type="text"
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
+                  placeholder="Enter Wallet Address (e.g., GB7NTQG4EXB7NZEA5GNFHIHEQVTGQTZ6OWKWUD535FBEHNSEVCKZULIY)"
+                  className="vault-input"
+                />
+                <button type="submit" disabled={accountLoading || !vaultAddress.trim()} className="search-button">
+                  {accountLoading ? 'Loading...' : 'View My Position'}
+                </button>
+              </div>
+            </form>
+
+            {accountError && <div className="error-message">{accountError}</div>}
+
+            {accountData && (
+              <div className="account-dashboard">
+                {/* Current Position */}
+                {accountData.currentPosition && (
+                  <div className="position-section">
+                    <h3>Current Position</h3>
+                    <div className="metrics-cards">
+                      <div className="metric-card">
+                        <span className="metric-label">Shares</span>
+                        <span className="metric-value">
+                          {formatAmountWithCommas(accountData.currentPosition.shares)}
+                          {accountData.vaultSymbol && <span className="vault-symbol-inline"> {accountData.vaultSymbol}</span>}
+                        </span>
+                      </div>
+                      <div className="metric-card">
+                        <span className="metric-label">Estimated Value</span>
+                        <span className="metric-value highlight">
+                          {accountData.currentPosition.estimatedValueDisplay || formatAmountWithCommas(accountData.currentPosition.estimatedValue)}
+                          {accountData.currentPosition.assets && accountData.currentPosition.assets.length > 0 && (
+                            <span className="vault-symbol-inline"> {accountData.currentPosition.assets[0].symbol}</span>
+                          )}
+                        </span>
+                      </div>
+                      {accountData.currentPosition.lastUpdated && (
+                        <div className="metric-card">
+                          <span className="metric-label">Last Updated</span>
+                          <span className="metric-value">
+                            {new Date(accountData.currentPosition.lastUpdated).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Assets Breakdown */}
+                    {accountData.currentPosition.assets && accountData.currentPosition.assets.length > 0 && (
+                      <div className="assets-breakdown">
+                        <h4>Asset Breakdown</h4>
+                        {accountData.currentPosition.assets.map((asset, idx) => (
+                          <div key={idx} className="asset-item">
+                            <div className="asset-info">
+                              <strong>{asset.name || asset.symbol}</strong>
+                              <span className="badge">{asset.symbol}</span>
+                            </div>
+                            <div className="asset-amount">
+                              <span className="amount-value">
+                                {asset.amountDisplay || formatAmountWithCommas(asset.amount)}
+                              </span>
+                              <span className="asset-symbol">{asset.symbol}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Performance Metrics */}
+                {accountData.performance && (
+                  <div className="performance-section">
+                    <h3>Performance Overview</h3>
+                    <div className="performance-grid">
+                      <div className="performance-card highlight-card">
+                        <h4>ROI</h4>
+                        <div className="roi-value">
+                          {accountData.performance.roi ? formatPercentage((accountData.performance.roi - 1) * 100) : 'N/A'}
+                        </div>
+                        <p className="roi-label">Return on Investment</p>
+                      </div>
+                      
+                      <div className="performance-card">
+                        <h4>Total Deposited</h4>
+                        <div className="perf-value-large">
+                          {accountData.performance.totalDepositedDisplay || formatAmountWithCommas(accountData.performance.totalDeposited)}
+                          {accountData.currentPosition?.assets?.[0]?.symbol && (
+                            <span className="vault-symbol-inline"> {accountData.currentPosition.assets[0].symbol}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="performance-card">
+                        <h4>Total Withdrawn</h4>
+                        <div className="perf-value-large">
+                          {accountData.performance.totalWithdrawnDisplay || formatAmountWithCommas(accountData.performance.totalWithdrawn)}
+                          {accountData.currentPosition?.assets?.[0]?.symbol && (
+                            <span className="vault-symbol-inline"> {accountData.currentPosition.assets[0].symbol}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="performance-card highlight-card">
+                        <h4>Total Interest Earned</h4>
+                        <div className="perf-value-large positive">
+                          {accountData.performance.totalInterestEarnedDisplay || formatAmountWithCommas(accountData.performance.totalInterestEarned)}
+                          {accountData.currentPosition?.assets?.[0]?.symbol && (
+                            <span className="vault-symbol-inline"> {accountData.currentPosition.assets[0].symbol}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="performance-card">
+                        <h4>Net Deposits</h4>
+                        <div className="perf-value-large">
+                          {accountData.performance.netDepositsDisplay || formatAmountWithCommas(accountData.performance.netDeposits)}
+                          {accountData.currentPosition?.assets?.[0]?.symbol && (
+                            <span className="vault-symbol-inline"> {accountData.currentPosition.assets[0].symbol}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Period Performance */}
+                    <div className="period-performance">
+                      {accountData.performance.period24h && (
+                        <div className="period-card">
+                          <h4>24 Hours</h4>
+                          <div className="period-metrics">
+                            <div className="period-metric">
+                              <span className="period-label">APY:</span>
+                              <span className="period-value">{accountData.performance.period24h.apy?.toFixed(2)}%</span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Interest Earned:</span>
+                              <span className="period-value positive">
+                                {accountData.performance.period24h.interestEarnedDisplay || formatAmountWithCommas(accountData.performance.period24h.interestEarned)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {accountData.performance.period7d && (
+                        <div className="period-card">
+                          <h4>7 Days</h4>
+                          <div className="period-metrics">
+                            <div className="period-metric">
+                              <span className="period-label">APY:</span>
+                              <span className="period-value">{accountData.performance.period7d.apy?.toFixed(2)}%</span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Interest Earned:</span>
+                              <span className="period-value positive">
+                                {accountData.performance.period7d.interestEarnedDisplay || formatAmountWithCommas(accountData.performance.period7d.interestEarned)}
+                              </span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Deposits:</span>
+                              <span className="period-value">
+                                {accountData.performance.period7d.depositsDisplay || formatAmountWithCommas(accountData.performance.period7d.deposits)}
+                              </span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Withdrawals:</span>
+                              <span className="period-value">
+                                {accountData.performance.period7d.withdrawalsDisplay || formatAmountWithCommas(accountData.performance.period7d.withdrawals)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {accountData.performance.period30d && (
+                        <div className="period-card">
+                          <h4>30 Days</h4>
+                          <div className="period-metrics">
+                            <div className="period-metric">
+                              <span className="period-label">APY:</span>
+                              <span className="period-value">{accountData.performance.period30d.apy?.toFixed(2)}%</span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Interest Earned:</span>
+                              <span className="period-value positive">
+                                {accountData.performance.period30d.interestEarnedDisplay || formatAmountWithCommas(accountData.performance.period30d.interestEarned)}
+                              </span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Deposits:</span>
+                              <span className="period-value">
+                                {accountData.performance.period30d.depositsDisplay || formatAmountWithCommas(accountData.performance.period30d.deposits)}
+                              </span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Withdrawals:</span>
+                              <span className="period-value">
+                                {accountData.performance.period30d.withdrawalsDisplay || formatAmountWithCommas(accountData.performance.period30d.withdrawals)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {accountData.performance.sinceInception && (
+                        <div className="period-card highlight-card">
+                          <h4>Since Inception ({accountData.performance.sinceInception.days} days)</h4>
+                          <div className="period-metrics">
+                            <div className="period-metric">
+                              <span className="period-label">APY:</span>
+                              <span className="period-value highlight">{accountData.performance.sinceInception.apy?.toFixed(2)}%</span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Total Return:</span>
+                              <span className="period-value highlight">
+                                {accountData.performance.sinceInception.totalReturn ? formatPercentage((accountData.performance.sinceInception.totalReturn - 1) * 100) : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="period-metric">
+                              <span className="period-label">Interest Earned:</span>
+                              <span className="period-value positive">
+                                {accountData.performance.sinceInception.interestEarnedDisplay || formatAmountWithCommas(accountData.performance.sinceInception.interestEarned)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Historical Charts */}
+                {accountData.data && Array.isArray(accountData.data) && accountData.data.length > 0 && (
+                  <div className="account-charts">
+                    <h3>Position History</h3>
+                    
+                    {/* Position Value Chart */}
+                    <div className="chart-card">
+                      <h4>Position Value Over Time</h4>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart data={accountData.data.map(record => ({
+                          date: new Date(record.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                          value: parseFloat(record.positionValue) / 10000000 || 0
+                        }))}>
+                          <defs>
+                            <linearGradient id="positionGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#667eea" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#667eea" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                          <XAxis dataKey="date" stroke="#666" />
+                          <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommasDecimal(value)} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#667eea"
+                            fillOpacity={1}
+                            fill="url(#positionGradient)"
+                            name="Position Value"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Interest Earned Chart */}
+                    <div className="chart-card">
+                      <h4>Interest Earned Over Time</h4>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={accountData.data.map(record => ({
+                          date: new Date(record.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                          interest: parseFloat(record.interestEarnedPeriod) / 10000000 || 0
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                          <XAxis dataKey="date" stroke="#666" />
+                          <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommasDecimal(value)} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar dataKey="interest" fill="#10b981" name="Interest Earned" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

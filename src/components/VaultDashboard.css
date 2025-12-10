@@ -629,3 +629,226 @@
     align-items: flex-start;
   }
 }
+
+/* Account Section */
+.account-section {
+  margin-top: 3rem;
+  padding-top: 3rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.section-description {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.account-form {
+  margin-bottom: 2rem;
+}
+
+.account-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.position-section {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.position-section h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.assets-breakdown {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.assets-breakdown h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #374151;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.asset-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+
+.asset-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.asset-info strong {
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.asset-amount {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.amount-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.asset-symbol {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.performance-section {
+  padding: 1.5rem 0;
+}
+
+.performance-section h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.highlight-card {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border: 2px solid #667eea;
+}
+
+.roi-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0.5rem 0;
+}
+
+.roi-label {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.perf-value-large {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0.5rem 0;
+}
+
+.perf-value-large.positive {
+  color: #10b981;
+}
+
+.period-performance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.period-card {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.period-card.highlight-card {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border: 2px solid #667eea;
+}
+
+.period-card h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #374151;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.period-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.period-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.period-metric:last-child {
+  border-bottom: none;
+}
+
+.period-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.period-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.period-value.highlight {
+  color: #667eea;
+  font-size: 1.1rem;
+}
+
+.period-value.positive {
+  color: #10b981;
+}
+
+.account-charts {
+  padding: 1.5rem 0;
+}
+
+.account-charts h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.account-charts .chart-card {
+  margin-bottom: 2rem;
+}
+
+.account-charts .chart-card h4 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+}

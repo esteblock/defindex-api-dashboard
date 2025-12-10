@@ -215,3 +215,53 @@ export async function getFactoryAddress(network = 'mainnet') {
     throw error
   }
 }
+
+/**
+ * Get account position and performance in a specific vault
+ * @param {string} walletAddress - The user wallet address
+ * @param {string} vaultAddress - The vault contract address
+ * @param {string} network - Network to query (testnet or mainnet)
+ * @param {string} interval - Data aggregation interval: hourly, daily, weekly, monthly (default: 'daily')
+ * @param {string} startDate - Start date in ISO 8601 format (optional)
+ * @param {string} endDate - End date in ISO 8601 format (optional)
+ * @param {boolean} includeEvents - Include transaction events (default: false)
+ * @returns {Promise<Object>} Account vault data
+ */
+export async function getAccountVaultData(walletAddress, vaultAddress, network = 'mainnet', interval = 'daily', startDate = null, endDate = null, includeEvents = false) {
+  if (!API_KEY) {
+    throw new Error('VITE_DEFINDEX_API_KEY is not set. Please configure your API key in the environment variables.')
+  }
+
+  const params = { network, interval }
+  if (startDate) params.startDate = startDate
+  if (endDate) params.endDate = endDate
+  if (includeEvents) params.includeEvents = includeEvents
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/account/${walletAddress}/vault/${vaultAddress}?${new URLSearchParams(params).toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`
+      }
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      let errorMessage = `Failed to fetch account vault data: ${response.status} ${response.statusText}`
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorMessage = errorJson.message || errorJson.error || errorMessage
+      } catch {
+        if (errorText) errorMessage += ` - ${errorText}`
+      }
+      throw new Error(errorMessage)
+    }
+
+    return response.json()
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to API. Please check your internet connection and CORS settings.`)
+    }
+    throw error
+  }
+}

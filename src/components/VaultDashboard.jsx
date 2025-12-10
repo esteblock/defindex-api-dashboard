@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { getVaultInfo, getVaultAPY, getVaultHistory } from '../services/api'
-import { formatAmount, formatAmountWithCommas, formatPercentage } from '../utils/formatters'
+import { formatAmount, formatAmountWithCommas, formatAmountWithCommasDecimal, formatAmountCompact, formatCompactNumber, formatPercentage } from '../utils/formatters'
 import {
   LineChart,
   Line,
@@ -8,12 +8,15 @@ import {
   Area,
   BarChart,
   Bar,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  ReferenceLine,
+  Cell
 } from 'recharts'
 import './VaultDashboard.css'
 
@@ -116,20 +119,51 @@ function VaultDashboard() {
       return []
     }
 
-    return vaultData.history.data.map((record) => ({
-      date: new Date(record.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      timestamp: record.timestamp,
-      vaultPPS: parseFloat(record.vaultPPS) || 0,
-      totalSupply: parseFloat(record.totalSupply) || 0,
-      totalManagedFunds: parseFloat(record.totalManagedFunds) || 0,
-      deposits: parseFloat(record.periodDeposits) || 0,
-      withdrawals: parseFloat(record.periodWithdrawals) || 0,
-      netDeposits: parseFloat(record.netDeposits) || 0,
-      ppsChange: record.ppsChangeFromPrevious !== null ? (record.ppsChangeFromPrevious * 100) : null
-    }))
+    return vaultData.history.data.map((record) => {
+      // PPS is already in decimal format, other amounts are in stroops (need to divide by 10^7)
+      const convertStroops = (value) => {
+        const num = parseFloat(value) || 0
+        return num / 10000000
+      }
+
+      return {
+        date: new Date(record.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        timestamp: record.timestamp,
+        vaultPPS: parseFloat(record.vaultPPS) || 0, // Already in decimal
+        totalSupply: convertStroops(record.totalSupply),
+        totalManagedFunds: convertStroops(record.totalManagedFunds),
+        deposits: convertStroops(record.periodDeposits),
+        withdrawals: convertStroops(record.periodWithdrawals),
+        netDeposits: convertStroops(record.netDeposits),
+        ppsChange: record.ppsChangeFromPrevious !== null ? record.ppsChangeFromPrevious : null
+      }
+    })
   }
 
   const chartData = prepareChartData()
+
+  // Helper function to get asset symbol
+  const getAssetSymbol = () => {
+    if (!vaultData) {
+      return null
+    }
+    
+    // Try to get from history currentState assets first
+    if (vaultData.history?.currentState?.assets && vaultData.history.currentState.assets.length > 0) {
+      // Check if assets have symbol in history
+      const asset = vaultData.history.currentState.assets[0]
+      if (asset.symbol) return asset.symbol
+    }
+    
+    // Fallback to info assets
+    if (vaultData.info?.assets && vaultData.info.assets.length > 0) {
+      return vaultData.info.assets[0].symbol
+    }
+    
+    return null
+  }
+
+  const assetSymbol = getAssetSymbol()
 
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }) => {
@@ -137,11 +171,21 @@ function VaultDashboard() {
       return (
         <div className="chart-tooltip">
           <p className="tooltip-label">{label}</p>
-          {payload.map((entry, index) => (
-            <p key={index} style={{ color: entry.color }}>
-              {entry.name}: {formatAmountWithCommas(entry.value)}
-            </p>
-          ))}
+          {payload.map((entry, index) => {
+            // Chart data is already in decimal format, so use decimal formatter
+            let formattedValue = formatAmountWithCommasDecimal(entry.value)
+            
+            // Special handling for PPS Change which is a percentage
+            if (entry.name === 'PPS Change %') {
+              formattedValue = formatPercentage(entry.value)
+            }
+            
+            return (
+              <p key={index} style={{ color: entry.color }}>
+                {entry.name}: {formattedValue}
+              </p>
+            )
+          })}
         </div>
       )
     }
@@ -203,14 +247,20 @@ function VaultDashboard() {
                       <span className="metric-value">{formatAmount(vaultData.history.currentState.vaultPPS)}</span>
                     </div>
                     <div className="metric-card">
-                      <span className="metric-label">Total Supply</span>
-                      <span className="metric-value">{formatAmountWithCommas(vaultData.history.currentState.totalSupply)}</span>
+                      <span className="metric-label">Total Vault Token Supply</span>
+                      <span className="metric-value">
+                        {formatAmountWithCommas(vaultData.history.currentState.totalSupply)}
+                        {(vaultData.history.vaultSymbol || vaultData.info?.symbol) && (
+                          <span className="vault-symbol-inline"> {(vaultData.history.vaultSymbol || vaultData.info.symbol)}</span>
+                        )}
+                      </span>
                     </div>
                     {vaultData.history.currentState.totalManagedFunds && vaultData.history.currentState.totalManagedFunds.length > 0 && (
                       <div className="metric-card">
                         <span className="metric-label">Total Value Locked</span>
                         <span className="metric-value">
                           {formatAmountWithCommas(vaultData.history.currentState.totalManagedFunds[0].total_amount)}
+                          {assetSymbol && <span className="vault-symbol-inline"> {assetSymbol}</span>}
                         </span>
                       </div>
                     )}
@@ -222,17 +272,23 @@ function VaultDashboard() {
                       <span className="metric-label">Total Deposits</span>
                       <span className="metric-value positive">
                         {vaultData.history.metrics.totalDepositsDisplay || formatAmountWithCommas(vaultData.history.metrics.totalDeposits)}
+                        {assetSymbol && <span className="vault-symbol-inline"> {assetSymbol}</span>}
                       </span>
                     </div>
                     <div className="metric-card">
                       <span className="metric-label">Total Withdrawals</span>
                       <span className="metric-value negative">
                         {vaultData.history.metrics.totalWithdrawalsDisplay || formatAmountWithCommas(vaultData.history.metrics.totalWithdrawals)}
+                        {assetSymbol && <span className="vault-symbol-inline"> {assetSymbol}</span>}
                       </span>
                     </div>
                     <div className="metric-card">
                       <span className="metric-label">Unique Depositors</span>
                       <span className="metric-value">{vaultData.history.metrics.uniqueDepositors || '0'}</span>
+                    </div>
+                    <div className="metric-card">
+                      <span className="metric-label">Total Transactions</span>
+                      <span className="metric-value">{vaultData.history.metrics.totalTransactions || '0'}</span>
                     </div>
                   </>
                 )}
@@ -256,13 +312,13 @@ function VaultDashboard() {
                       <div className="performance-item">
                         <span className="perf-label">PPS Change</span>
                         <span className="perf-value">
-                          {vaultData.history.metrics.period7d.ppsChange ? formatPercentage(vaultData.history.metrics.period7d.ppsChange * 100) : 'N/A'}
+                          {vaultData.history.metrics.period7d.ppsChange !== null && vaultData.history.metrics.period7d.ppsChange !== undefined ? formatPercentage(vaultData.history.metrics.period7d.ppsChange) : 'N/A'}
                         </span>
                       </div>
                       <div className="performance-item">
                         <span className="perf-label">Net Deposits</span>
                         <span className="perf-value">
-                          {vaultData.history.metrics.period7d.netDepositsDisplay || formatAmountWithCommas(vaultData.history.metrics.period7d.netDeposits)}
+                          {vaultData.history.metrics.period7d.netDepositsDisplay || formatAmountCompact(vaultData.history.metrics.period7d.netDeposits)}
                         </span>
                       </div>
                     </div>
@@ -280,13 +336,13 @@ function VaultDashboard() {
                       <div className="performance-item">
                         <span className="perf-label">PPS Change</span>
                         <span className="perf-value">
-                          {vaultData.history.metrics.period30d.ppsChange ? formatPercentage(vaultData.history.metrics.period30d.ppsChange * 100) : 'N/A'}
+                          {vaultData.history.metrics.period30d.ppsChange !== null && vaultData.history.metrics.period30d.ppsChange !== undefined ? formatPercentage(vaultData.history.metrics.period30d.ppsChange) : 'N/A'}
                         </span>
                       </div>
                       <div className="performance-item">
                         <span className="perf-label">Net Deposits</span>
                         <span className="perf-value">
-                          {vaultData.history.metrics.period30d.netDepositsDisplay || formatAmountWithCommas(vaultData.history.metrics.period30d.netDeposits)}
+                          {vaultData.history.metrics.period30d.netDepositsDisplay || formatAmountCompact(vaultData.history.metrics.period30d.netDeposits)}
                         </span>
                       </div>
                     </div>
@@ -384,7 +440,7 @@ function VaultDashboard() {
                   <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                     <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommas(value)} />
+                    <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommasDecimal(value)} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     <Bar dataKey="deposits" fill="#10b981" name="Deposits" />
@@ -396,27 +452,56 @@ function VaultDashboard() {
               {/* Net Deposits Chart */}
               <div className="chart-card">
                 <h3>Net Deposits Flow</h3>
+                <p className="chart-description">
+                  Shows the net flow of funds (deposits minus withdrawals) for each period. 
+                  Positive values (green) indicate more deposits than withdrawals, while negative values (red) indicate net outflows.
+                </p>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={chartData}>
+                  <ComposedChart data={chartData}>
                     <defs>
-                      <linearGradient id="netDepositsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <linearGradient id="netDepositsPositiveGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="netDepositsNegativeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                     <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommas(value)} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="netDeposits"
-                      stroke="#10b981"
-                      fillOpacity={1}
-                      fill="url(#netDepositsGradient)"
-                      name="Net Deposits"
+                    <YAxis stroke="#666" tickFormatter={(value) => formatCompactNumber(value)} />
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="chart-tooltip">
+                              <p className="tooltip-label">{label}</p>
+                              {payload.map((entry, index) => {
+                                // Chart data is already in decimal format, use compact formatter directly
+                                const formattedValue = formatCompactNumber(entry.value)
+                                return (
+                                  <p key={index} style={{ color: entry.color }}>
+                                    {entry.name}: {formattedValue}
+                                  </p>
+                                )
+                              })}
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
                     />
-                  </AreaChart>
+                    <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" />
+                    <Bar dataKey="netDeposits" name="Net Deposits" radius={[4, 4, 0, 0]}>
+                      {chartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.netDeposits >= 0 ? '#10b981' : '#ef4444'}
+                        />
+                      ))}
+                    </Bar>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
 
@@ -427,7 +512,7 @@ function VaultDashboard() {
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                     <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommas(value)} />
+                    <YAxis stroke="#666" tickFormatter={(value) => formatAmountWithCommasDecimal(value)} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     <Line
